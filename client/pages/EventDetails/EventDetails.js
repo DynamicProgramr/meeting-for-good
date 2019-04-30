@@ -7,6 +7,8 @@ import PropTypes from 'prop-types';
 import EventDetailsComponent from '../../components/EventDetailsComponent/EventDetailsComponent';
 import styles from './event-details.css';
 import GuestInviteDrawer from '../../components/GuestInviteDrawer/GuestInviteDrawer';
+import { listCalendarEvents } from '../../util/calendar';
+import { eventsMaxMinDatesForEvent } from '../../util/dates.utils';
 
 class EventDetails extends Component {
   constructor(props) {
@@ -15,27 +17,42 @@ class EventDetails extends Component {
       event: null,
       showLoginModal: false,
       openDrawer: false,
-      eventToInvite: {},
       curUser: {},
       isAuthenticated: false,
     };
   }
 
   async componentWillMount() {
-    const { isAuthenticated, curUser } = this.props;
-    if (isAuthenticated === true) {
-      const event = await this.props.cbLoadEvent(this.props.params.uid);
-      this.setState({ event, curUser });
-    } else {
+    const { isAuthenticated, curUser, cbLoadEvent } = this.props;
+    if (isAuthenticated === false) {
       this.props.cbOpenLoginModal(`/event/${this.props.params.uid}`);
+    } else {
+      try {
+        await this.loadEventsAndCalendar(isAuthenticated, curUser, cbLoadEvent);
+      } catch (err) {
+        console.error('eventDetails componentWillMount', err);
+      }
     }
   }
 
   async componentWillReceiveProps(nextProps) {
-    const { isAuthenticated, curUser } = nextProps;
+    const { isAuthenticated, curUser, cbLoadEvent } = nextProps;
+    try {
+      await this.loadEventsAndCalendar(isAuthenticated, curUser, cbLoadEvent);
+    } catch (err) {
+      console.error('eventDetails componentWillReceiveProps', err);
+    }
+  }
+
+  async loadEventsAndCalendar(isAuthenticated, curUser, cbLoadEvent) {
     if (isAuthenticated === true) {
-      const event = await this.props.cbLoadEvent(this.props.params.uid);
-      this.setState({ event, curUser });
+      try {
+        const event = await cbLoadEvent(this.props.params.uid);
+        const calendarEvents = await listCalendarEvents(eventsMaxMinDatesForEvent(event), curUser);
+        this.setState({ event, curUser, calendarEvents });
+      } catch (err) {
+        console.error('eventDetails loadEventsAndCalendar', err);
+      }
     }
   }
 
@@ -80,13 +97,16 @@ class EventDetails extends Component {
   }
 
   @autobind
-  async HandleInviteEmail(guestId, event, curUser) {
-    const response = await this.props.cbInviteEmail(guestId, event, curUser);
-    return response;
+  async HandleInviteEmail(guestId, event) {
+    const nEvent = await this.props.cbInviteEmail(guestId, event);
+    if (nEvent) this.setState({ event: nEvent });
+    return nEvent;
   }
 
   render() {
-    const { event, openDrawer, eventToInvite, curUser } = this.state;
+    const {
+      event, openDrawer, curUser, calendarEvents,
+    } = this.state;
     if (event) {
       return (
         <div styleName="event">
@@ -99,11 +119,11 @@ class EventDetails extends Component {
             cbHandleEmailOwner={this.HandleEmailOwner}
             cbHandleEmailOwnerEdit={this.HandleEmailOwnerEdit}
             cbDeleteGuest={this.handleDeleteGuest}
+            calendarEvents={calendarEvents}
           />
           <GuestInviteDrawer
             open={openDrawer}
-            event={eventToInvite}
-            curUser={curUser}
+            event={event}
             cb={this.handleCbGuestInviteDrawer}
             cbInviteEmail={this.HandleInviteEmail}
           />
@@ -114,15 +134,19 @@ class EventDetails extends Component {
 }
 
 EventDetails.defaultProps = {
+  cbOpenLoginModal: () => { console.log('cbDeleteEvent func not passed in!'); },
   cbDeleteEvent: () => { console.log('cbDeleteEvent func not passed in!'); },
   cbEditEvent: () => { console.log('cbEditEvent func not passed in!'); },
   cbEmailOwner: () => { console.log('cbEmailOwner func not passed in!'); },
   cbEmailOwnerEdit: () => { console.log('cbEmailEdit func not passed in!'); },
   cbDeleteGuest: () => { console.log('cbDeleteGuest func not passed in!'); },
   cbInviteEmail: () => { console.log('cbInviteEmail func not passed in!'); },
+  params: () => { console.log('params not passed in!'); },
 };
 
 EventDetails.propTypes = {
+  params: PropTypes.objectOf(PropTypes.string),
+  cbOpenLoginModal: PropTypes.func,
   cbDeleteEvent: PropTypes.func,
   cbEditEvent: PropTypes.func,
   cbEmailOwner: PropTypes.func,

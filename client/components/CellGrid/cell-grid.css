@@ -16,10 +16,31 @@
   background-color: transparent !important;
 }
 
+.cellGridJump {
+  border-left: 6px double #787878;
+  width: 18px;
+}
 .cellBorderHour {
   border-left: 1px solid rgb(120, 120, 120);
 }
 
 .cellBorderHalfHour {
   border-left: 1px solid #c3bebe;
+}
+
+.CellHasCalendarEvent {
+    border: 1px solid darkblue;
+}
+
+.toolTipHeader {
+  font-size: 16px;
+}
+
+.toolTipHeaderWrapper {
+  margin-left: 20px;
+  margin-bottom: 10px;
+}
+
+.toolTipSubHeader {
+  margin-left: 10px;
 }

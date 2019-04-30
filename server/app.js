@@ -1,32 +1,37 @@
+// to work needs to be the fisrt one and as require.
+import 'dotenv/config';
+import opbeat from 'opbeat/start';
 import mongoose from 'mongoose';
-import bluebird from 'bluebird';
 import passport from 'passport';
 import session from 'express-session';
 import bodyParser from 'body-parser';
 import compression from 'compression';
 import express from 'express';
 import connectMongo from 'connect-mongo';
-import 'dotenv/config';
-import routes from './app/routes/routes';
+import morgan from 'morgan';
 
+import routes from './app/routes/routes';
+import { computeStats } from './api/stats/stats.controller';
 
 process.env.NODE_ENV = process.env.NODE_ENV || 'development';
 
+
 const app = express();
 app.use(compression({ threshold: 0 }));
-mongoose.Promise = bluebird;
-mongoose.connect(process.env.MONGO_URI);
+mongoose.Promise = global.Promise;
+mongoose.connect((process.env.NODE_ENV === 'test') ? process.env.MONGO_URI_TEST : process.env.MONGO_URI);
 
 if (process.env.NODE_ENV === 'development') {
   // Development Env specific stuff
   // - Use MemoryStore for the session
   // only load webpack stuff at dev.
+  /* eslint-disable */
   const webpackDevMiddleware = require('webpack-dev-middleware');
   const webpackHotMiddleware = require('webpack-hot-middleware');
   const webpack = require('webpack');
   const webpackConfig = require('../webpack.config.dev');
   const compiler = webpack(webpackConfig);
-
+  /* eslint-enable */
   app.use(webpackDevMiddleware(compiler, {
     compress: true,
     historyApiFallback: true,
@@ -59,6 +64,8 @@ if (process.env.NODE_ENV === 'development') {
     saveUninitialized: true,
     store: new MongoStore({ mongooseConnection: mongoose.connection }),
   }));
+  // setup the logger
+  app.use(morgan(':status :method :response-time ms - :url'));
 }
 
 app.use(bodyParser.urlencoded({ extended: false }));
@@ -71,9 +78,15 @@ app.use(passport.session());
 
 app.use('/', express.static(`${__dirname}/`, { maxAge: 31557600000 }));
 app.use('/client/', express.static(`${__dirname}/client/`, { maxAge: 31557600000 }));
+app.use(opbeat.middleware.express());
 routes(app);
 
 const port = process.env.PORT || 8080;
 app.listen(port, () => {
   console.log(`Node.js listening on port ${port}...'`);
 });
+
+// Start the Stats module.  Run once, and then again every so often.
+computeStats();
+const interval = parseInt(process.env.STATS_UPDATE_INTERVAL || '3600', 10) * 1000;
+setInterval(() => computeStats(), interval);

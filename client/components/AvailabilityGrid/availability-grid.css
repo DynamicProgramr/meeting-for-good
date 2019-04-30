@@ -25,21 +25,28 @@
   box-sizing: border-box;
 }
 
-.grid-hour {
+.grid-hourBasic {
   font-size: 13px;
   width: 48px;
   height: 22px;
   padding: 0 0 0 3px;
   margin-bottom: -1px;
-  border-left: 1px solid #787878;
   user-select: none;
   -webkit-user-select: none;
+}
+
+.grid-hour {
+ composes: grid-hourBasic;
+  border-left: 1px solid #787878;
 }
 
 .timesTitle {
   display: flex;
   flex-direction: row;
   margin: 0 0 0 72px;
+  position: sticky;
+  top: 0;
+  background: white;
 }
 
 .info {
@@ -59,3 +66,28 @@
 .cancelButton {
   margin-left: 15px;
 }
+
+.jumperCellWrapper {
+  display: flex;
+  flex-direction: row;
+   border-left: 2px solid #787878;
+}
+  .jumperIcon {
+    max-width: 13px;
+    border-right: 1px solid #787878;
+  }
+  .rowWrapper {
+    display: flex;
+    flex-direction: row;
+  }
+
+  .jumperCellGrid {
+    min-width: 13px;
+    background-color: #e5e5e5;
+    border-left: 2px solid #787878;
+    border-right: 1px solid #787878;
+  }
+
+  .lastCellAfterJumpHour {
+     border-left: 1px solid #787878;
+  }

@@ -10,30 +10,18 @@ import AvailabilityGrid from '../AvailabilityGrid/AvailabilityGrid';
 import styles from './event-details-component.css';
 import ParticipantsList from '../../components/ParticipantsList/ParticipantsList';
 import BestTimesDisplay from '../../components/BestTimeDisplay/BestTimeDisplay';
+import SelectedDatesEditor from '../../components/SelectedDatesEditor/SelectedDatesEditor';
+import { datesToDatesObject, isCurParticip, eventAllParticipIds } from './EventDetailsComponentUtil';
+import { isEvent, isCurUser } from '../../util/commonPropTypes';
 
 class EventDetailsComponent extends React.Component {
   constructor(props) {
     super(props);
-    const eventParticipantsIds = props.event.participants.map(
-      participant => participant.userId._id,
-    );
     const { event } = props;
-
-    const ranges = event.dates.map(({ fromDate, toDate }) => ({
-      from: new Date(fromDate),
-      to: new Date(toDate),
-    }));
-
-    const dates = event.dates.map(({ fromDate, toDate }) => ({
-      fromDate: new Date(fromDate),
-      toDate: new Date(toDate),
-    }));
-
     this.state = {
       event,
-      ranges,
-      dates,
-      eventParticipantsIds,
+      dates: datesToDatesObject(event),
+      eventParticipantsIds: eventAllParticipIds(event),
       showHeatmap: false,
       myAvailability: [],
       showButtonAviability: 'none',
@@ -42,20 +30,19 @@ class EventDetailsComponent extends React.Component {
       snackBarOpen: false,
       snackBarMsg: '',
       heightlightedUser: '',
+      isOwner: false,
     };
   }
 
-  async componentWillMount() {
+  componentWillMount() {
     const { curUser, event } = this.props;
     if (curUser) {
       let showHeatmap = false;
       let showAvailabilityGrid = 'block';
       let myAvailability = [];
-
+      const isOwner = event.owner === curUser._id;
       // find actual user participant record
-      const isCurParticipant = event.participants.find(participant =>
-        participant.userId._id === curUser._id,
-      );
+      const isCurParticipant = isCurParticip(curUser, event);
       // if curUser have aviability show heatMap
       if (isCurParticipant) {
         if (isCurParticipant.availability) {
@@ -74,26 +61,26 @@ class EventDetailsComponent extends React.Component {
           snackBarMsg: 'Please add your availability to join the event.',
         });
       }
-      this.setState({ showHeatmap, showAvailabilityGrid, myAvailability });
+      this.setState({
+        showHeatmap, showAvailabilityGrid, myAvailability, isOwner,
+      });
     }
   }
 
   componentWillReceiveProps(nextProps) {
-    this.setState({ event: nextProps.event });
+    const { event } = nextProps;
+    const dates = datesToDatesObject(event);
+    this.setState({ event, dates });
   }
 
   async sendEmailOwner(event) {
     const response = this.props.cbHandleEmailOwner(event);
-    if (!response) {
-      console.log('sendEmailOwner error');
-    }
+    if (!response) console.log('sendEmailOwner error');
   }
 
   async sendEmailOwnerEdit(event) {
     const response = this.props.cbHandleEmailOwnerEdit(event);
-    if (!response) {
-      console.log('sendEmailOwnerEdit error');
-    }
+    if (!response) console.log('sendEmailOwnerEdit error');
   }
 
   @autobind
@@ -112,16 +99,24 @@ class EventDetailsComponent extends React.Component {
   }
 
   @autobind
+  async submitEditDates(patches) {
+    const { event, cbEditEvent } = this.props;
+    try {
+      const responseEvent = await cbEditEvent(patches, event._id);
+      this.setState({ event: responseEvent });
+    } catch (err) {
+      console.log('err at submitEditDates, EventDtailComponent', err);
+    }
+  }
+
+  @autobind
   async submitAvailability(patches) {
     const { event, curUser } = this.props;
     const oldMe = event.participants.find(participant =>
-      participant.userId._id === curUser._id,
-    );
+      participant.userId._id === curUser._id);
     const responseEvent = await this.props.cbEditEvent(patches, event._id);
     if (responseEvent) {
-      const me = responseEvent.participants.find(participant =>
-        participant.userId._id === curUser._id,
-      );
+      const me = isCurParticip(curUser, responseEvent);
       this.setState({
         showHeatmap: true,
         event: responseEvent,
@@ -148,64 +143,56 @@ class EventDetailsComponent extends React.Component {
   }
 
   @autobind
-  handleDelete() {
-    const { event } = this.state;
-    this.props.cbDeleteEvent(event._id);
-  }
-
-  @autobind
   async handleDeleteGuest(guestToDelete) {
     const nEvent = await this.props.cbDeleteGuest(guestToDelete);
     this.setState({ event: nEvent });
     return nEvent;
   }
 
-  @autobind
-  handleSnackBarRequestClose() {
-    this.setState({
-      snackBarOpen: false,
-    });
+  renderSnackBar() {
+    const { snackBarOpen, snackBarMsg } = this.state;
+    return (
+      <Snackbar
+        style={{ border: '5px solid #fffae6' }}
+        bodyStyle={{ height: 'flex' }}
+        contentStyle={{ fontSize: '16px', textAlign: 'center' }}
+        open={snackBarOpen}
+        message={snackBarMsg}
+        action="dismiss"
+        autoHideDuration={5000}
+        onRequestClose={() => this.setState({ snackBarOpen: false })}
+        onActionTouchTap={() => this.setState({ snackBarOpen: false })}
+      />
+    );
   }
 
-  @autobind
-  handleOnMouseOverPrtcList(guest) {
-    this.setState({ heightlightedUser: guest });
+  renderDeleteButton() {
+    const { isOwner, event } = this.state;
+    const { cbDeleteEvent } = this.props;
+    return (isOwner) ? <DeleteModal event={event} cbEventDelete={() => cbDeleteEvent(event._id)} />
+      : null;
   }
 
-  @autobind
-  handleOnMouseLeavePrtcList() {
-    this.setState({ heightlightedUser: '' });
+  renderEditDatesButton() {
+    const { isOwner, event } = this.state;
+    return (isOwner) ?
+      <SelectedDatesEditor event={event} submitDates={this.submitEditDates} /> : null;
   }
 
   render() {
     const {
-      event, showHeatmap, dates, snackBarOpen, snackBarMsg, heightlightedUser,
+      event, showHeatmap, dates, heightlightedUser,
     } = this.state;
-    const { curUser } = this.props;
-    let isOwner;
-    // check if the curUser is owner
-    if (curUser !== undefined) {
-      isOwner = event.owner === curUser._id;
-    }
-
-    const inLineStyles = {
-      snackBar: {
-        border: '5px solid #fffae6',
-        contentSyle: {
-          fontSize: '16px',
-          textAlign: 'center',
-        },
-      },
-    };
-
+    const { curUser, calendarEvents } = this.props;
     return (
       <div styleName="wrapper">
         <div>
           <Card styleName="card">
-            {isOwner ? <DeleteModal event={event} cbEventDelete={this.handleDelete} /> : null}
+            {this.renderDeleteButton()}
             <CardTitle styleName="cardTitle">{event.name}</CardTitle>
             <CardText>
               <BestTimesDisplay event={event} disablePicker />
+              {this.renderEditDatesButton()}
               <AvailabilityGrid
                 event={event}
                 curUser={curUser}
@@ -215,6 +202,7 @@ class EventDetailsComponent extends React.Component {
                 showHeatmap={showHeatmap}
                 closeEditorGrid={this.closeGrid}
                 heightlightedUser={heightlightedUser}
+                calendarEvents={calendarEvents}
               />
               <br />
               <ParticipantsList
@@ -222,27 +210,23 @@ class EventDetailsComponent extends React.Component {
                 curUser={curUser}
                 showInviteGuests={this.handleShowInviteGuestsDrawer}
                 cbDeleteGuest={this.handleDeleteGuest}
-                cbOnChipMouseOver={guest => this.handleOnMouseOverPrtcList(guest)}
-                cbOnChipMouseLeave={guest => this.handleOnMouseLeavePrtcList(guest)}
+                cbOnChipMouseOver={guest => this.setState({ heightlightedUser: guest })}
+                cbOnChipMouseLeave={() => this.setState({ heightlightedUser: '' })}
               />
             </CardText>
           </Card>
         </div>
-        <Snackbar
-          style={inLineStyles.snackBar}
-          bodyStyle={{ height: 'flex' }}
-          contentStyle={inLineStyles.snackBar.contentSyle}
-          open={snackBarOpen}
-          message={snackBarMsg}
-          action="dismiss"
-          autoHideDuration={5000}
-          onRequestClose={this.handleSnackBarRequestClose}
-          onActionTouchTap={this.handleSnackBarRequestClose}
-        />
+        {this.renderSnackBar()}
       </div>
     );
   }
 }
+
+EventDetailsComponent.defaultProps = {
+  event: () => { console.log('event prop validation not set!'); },
+  curUser: () => { console.log('curUser prop validation not set!'); },
+  calendarEvents: [],
+};
 
 EventDetailsComponent.propTypes = {
   showInviteGuests: PropTypes.func.isRequired,
@@ -251,40 +235,11 @@ EventDetailsComponent.propTypes = {
   cbHandleEmailOwner: PropTypes.func.isRequired,
   cbHandleEmailOwnerEdit: PropTypes.func.isRequired,
   cbDeleteGuest: PropTypes.func.isRequired,
-
+  calendarEvents: PropTypes.arrayOf(PropTypes.object),
   // Current user
-  curUser: PropTypes.shape({
-    _id: PropTypes.string,      // Unique user id
-    name: PropTypes.string,     // User name
-    avatar: PropTypes.string,   // URL to image representing user(?)
-  }).isRequired,
-
+  curUser: isCurUser,
   // Event containing list of event participants
-  event: PropTypes.shape({
-    _id: PropTypes.string,
-    name: PropTypes.string,
-    owner: PropTypes.string,
-    active: PropTypes.bool,
-    selectedTimeRange: PropTypes.array,
-    dates: PropTypes.arrayOf(PropTypes.shape({
-      fromDate: PropTypes.string,
-      toDate: PropTypes.string,
-      _id: PropTypes.string,
-    })),
-    participants: PropTypes.arrayOf(PropTypes.shape({
-      userId: PropTypes.shape({
-        id: PropTypes.string,
-        avatar: PropTypes.string,
-        name: PropTypes.string,
-        emails: PropTypes.arrayOf(PropTypes.string),
-      }),
-      _id: PropTypes.string,
-      status: PropTypes.oneOf([0, 1, 2, 3]),
-      emailUpdate: PropTypes.bool,
-      ownerNotified: PropTypes.bool,
-      availability: PropTypes.arrayOf(PropTypes.arrayOf(PropTypes.string)),
-    })),
-  }).isRequired,
+  event: isEvent,
 };
 
 export default cssModules(EventDetailsComponent, styles);

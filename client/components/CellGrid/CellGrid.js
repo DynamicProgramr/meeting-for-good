@@ -1,126 +1,80 @@
-import React, { Component } from 'react';
+import React from 'react';
 import cssModules from 'react-css-modules';
 import PropTypes from 'prop-types';
-import moment from 'moment';
-import _ from 'lodash';
+import ReactTooltip from 'react-tooltip';
 
+import { styleNameCompose, formatCellBackgroundColor } from './cellGridUtils';
 import styles from './cell-grid.css';
 
-class CellGrid extends Component {
+const toolTipRows = (quarter) => {
+  const eventsCalendar = quarter.eventCalendar;
+  const rows = [];
+  eventsCalendar.forEach((event) => {
+    rows.push(<div key={`toolTipRow ${quarter.time.toString()} ${event.id}`} styleName="toolTipHeaderWrapper">
+      <p> {(event.name) ? event.name : 'No Name'} </p>
+      <p styleName="toolTipSubHeader"> organized by : <strong>{event.organizer} </strong></p>
+    </div>);
+  });
+  return rows;
+};
 
-  static styleNameCompose(
-    heightlightedUser, heatMapMode, participants, backgroundColors, curUser, time) {
-    // select the class for the border base style
-    let style = 'cell';
-    const minutes = time.minutes();
-    if (minutes === 0) {
-      style += ' cellBorderHour';
-    } else if (minutes === 30) {
-      style += ' cellBorderHalfHour';
-    }
-
-    // if have a user to hightLight and is present at this cell
-    if (heightlightedUser) {
-      if (_.find(participants, heightlightedUser)) {
-        style += ' cellHighlighted';
-      } else {
-        style += ' cellNotHeiglighted';
-      }
-    }
-    return style;
-  }
-
-  static formatCellBackgroundColor(heatMapMode, participants, backgroundColors, curUser) {
-    if (heatMapMode) {
-      if (participants.length > 0) {
-        return backgroundColors[participants.length - 1];
-      }
-      return 'transparent';
-    }
-
-    if (_.find(participants, curUser._id)) {
-      return '#000000';
-    }
-    if (participants.length > 0) {
-      return '#DADADA';
-    }
-    return 'transparent';
-  }
-
-  constructor(props) {
-    super(props);
-    this.state = {
-      participants: [],
-      heatMapMode: false,
-    };
-  }
-
-  componentWillMount() {
-    const {
-      date, participants, heatMapMode, rowIndex, columnIndex, heightlightedUser } = this.props;
-    this.setState({
-      date: moment(date), participants, heatMapMode, rowIndex, columnIndex, heightlightedUser,
-    });
-  }
-
-  componentWillReceiveProps(nextProps) {
-    const { date, participants, heatMapMode, heightlightedUser } = nextProps;
-    this.setState({ date: moment(date), participants, heatMapMode, heightlightedUser });
-  }
-
-  render() {
-    const { date, participants, heatMapMode, heightlightedUser } = this.state;
-    const { backgroundColors, curUser } = this.props;
-    const { formatCellBackgroundColor, styleNameCompose } = this.constructor;
-
-    const styleNames = styleNameCompose(
-      heightlightedUser, heatMapMode, participants, backgroundColors, curUser, date);
-
-    const inlineStyle = {
-      backgroundColor: formatCellBackgroundColor(
-        heatMapMode, participants, backgroundColors, curUser),
-    };
-
+const ToolTip = (quarter, heatMapMode) => {
+  if (quarter.eventCalendar.length > 0 && heatMapMode) {
     return (
-      <div
-        role="presentation"
-        style={inlineStyle}
-        styleName={styleNames}
-        key={date}
-        onMouseOver={this.props.onMouseOver}
-        onMouseLeave={this.props.onMouseLeave}
-        onMouseDown={this.props.onMouseDown}
-        onMouseUp={this.props.onMouseUp}
-      />
-    );
+      <ReactTooltip key={`toolTip ${quarter.time.toString()}`} id={quarter.time.toString()} place="top" effect="float">
+        <h4 styleName="toolTipHeader"> You have conflicts <br /> with your Google Calendar: </h4>
+        {toolTipRows(quarter)}
+      </ReactTooltip>);
   }
-}
+  return null;
+};
+
+const CellGrid = (props) => {
+  const {
+    quarter, onMouseOver, onMouseLeave, onMouseDown, onMouseUp, heatMapMode,
+  } = props;
+  const styleNames = styleNameCompose(props);
+  const inlineStyle = {
+    background: formatCellBackgroundColor(props),
+    cursor: (quarter.disable) ? 'not-allowed' : 'pointer',
+  };
+  return (
+    <div
+      role="presentation"
+      style={inlineStyle}
+      styleName={styleNames}
+      key={quarter.date}
+      onMouseOver={onMouseOver}
+      onMouseLeave={onMouseLeave}
+      onMouseDown={onMouseDown}
+      onMouseUp={onMouseUp}
+      data-tip
+      data-for={quarter.time.toString()}
+    >
+      {ToolTip(quarter, heatMapMode)}
+    </div>
+  );
+};
 
 CellGrid.defaultProps = {
   backgroundColors: ['transparent'],
   rowIndex: 0,
   columnIndex: 0,
   heightlightedUser: '',
+  disable: false,
 };
 
 CellGrid.propTypes = {
-  heatMapMode: PropTypes.bool.isRequired,
-  date: PropTypes.instanceOf(Date).isRequired,
-  participants: PropTypes.arrayOf(PropTypes.shape({ id: PropTypes.String })).isRequired,
-  backgroundColors: PropTypes.arrayOf(PropTypes.string),
   onMouseOver: PropTypes.func.isRequired,
   onMouseLeave: PropTypes.func.isRequired,
   onMouseDown: PropTypes.func.isRequired,
   onMouseUp: PropTypes.func.isRequired,
-  rowIndex: PropTypes.number,
-  columnIndex: PropTypes.number,
-  heightlightedUser: PropTypes.string,
-
-  // Current user
-  curUser: PropTypes.shape({
-    _id: PropTypes.string,      // Unique user id
-    name: PropTypes.string,     // User name
-    avatar: PropTypes.string,   // URL to image representing user(?)
+  heatMapMode: PropTypes.bool.isRequired,
+  quarter: PropTypes.shape({
+    time: PropTypes.instanceOf(Date).isRequired,
+    participants: PropTypes.arrayOf(PropTypes.shape({ id: PropTypes.string })).isRequired,
+    notParticipants: PropTypes.arrayOf(PropTypes.shape({ id: PropTypes.string })).isRequired,
+    disable: PropTypes.bool,
   }).isRequired,
 };
 

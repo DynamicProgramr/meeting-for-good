@@ -6,6 +6,7 @@ import FloatingActionButton from 'material-ui/FloatingActionButton';
 import EventDelete from 'material-ui/svg-icons/action/delete';
 import cssModules from 'react-css-modules';
 import PropTypes from 'prop-types';
+import { isEvent } from '../../util/commonPropTypes';
 
 import styles from './delete-modal.css';
 
@@ -44,39 +45,17 @@ class DeleteModal extends Component {
     const styles = {
       modal: {
         title: {
-          backgroundColor: '#FF4025',
-          color: '#ffffff',
-          fontSize: '25px',
-          height: '25px',
-          paddingTop: 6,
+          backgroundColor: '#FF4025', color: '#ffffff', fontSize: '25px', height: '25px', paddingTop: 6,
         },
-        content: {
-          width: '22%',
-          maxWidth: '22%',
-          minWidth: '300px',
-        },
-        bodyStyle: {
-          paddingTop: 10,
-          fontSize: '25px',
-        },
+        content: { width: '22%', maxWidth: '22%', minWidth: '300px' },
+        bodyStyle: { paddingTop: 10, fontSize: '25px' },
       },
-      FloatingBt: {
-        marginLeft: '85%',
-        marginTop: '-5%',
-      },
+      FloatingBt: { marginLeft: '85%', marginTop: '-5%' },
     };
 
     const actions = [
-      <FlatButton
-        label="Cancel"
-        primary
-        onTouchTap={this.handleClose}
-      />,
-      <FlatButton
-        label="yes"
-        secondary
-        onTouchTap={this.handleDelete}
-      />,
+      <FlatButton label="Cancel" primary onTouchTap={this.handleClose} />,
+      <FlatButton label="yes" secondary onTouchTap={this.handleDelete} />,
     ];
     return (
       <div>
@@ -104,35 +83,15 @@ class DeleteModal extends Component {
   }
 }
 
+
+DeleteModal.defaultProps = {
+  event: () => { console.log('event prop validation not set!'); },
+};
+
 DeleteModal.propTypes = {
   cbEventDelete: PropTypes.func.isRequired,
-
   // Event containing list of event participants
-  event: PropTypes.shape({
-    _id: PropTypes.string,
-    name: PropTypes.string,
-    owner: PropTypes.string,
-    active: PropTypes.bool,
-    selectedTimeRange: PropTypes.array,
-    dates: PropTypes.arrayOf(PropTypes.shape({
-      fromDate: PropTypes.string,
-      toDate: PropTypes.string,
-      _id: PropTypes.string,
-    })),
-    participants: PropTypes.arrayOf(PropTypes.shape({
-      userId: PropTypes.shape({
-        id: PropTypes.string,
-        avatar: PropTypes.string,
-        name: PropTypes.string,
-        emails: PropTypes.arrayOf(PropTypes.string),
-      }),
-      _id: PropTypes.string,
-      status: PropTypes.oneOf([0, 1, 2, 3]),
-      emailUpdate: PropTypes.bool,
-      ownerNotified: PropTypes.bool,
-      availability: PropTypes.arrayOf(PropTypes.arrayOf(PropTypes.string)),
-    })),
-  }).isRequired,
+  event: isEvent,
 };
 
 export default cssModules(DeleteModal, styles);

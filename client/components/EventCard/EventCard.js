@@ -11,6 +11,7 @@ import BestTimesDisplay from '../BestTimeDisplay/BestTimeDisplay';
 import ParticipantsList from '../ParticipantsList/ParticipantsList';
 import DeleteModal from '../DeleteModal/DeleteModal';
 import styles from './event-card.css';
+import { isEvent, isCurUser } from '../../util/commonPropTypes';
 
 class EventCard extends Component {
   constructor(props) {
@@ -61,9 +62,7 @@ class EventCard extends Component {
 
     return (
       <Card styleName="card">
-        {
-          isOwner ? <DeleteModal event={event} cbEventDelete={this.handleDelete} /> : null
-        }
+        {isOwner ? <DeleteModal event={event} cbEventDelete={this.handleDelete} /> : null }
         <CardTitle styleName="cardTitle">
           {event.name}
         </CardTitle>
@@ -85,45 +84,22 @@ class EventCard extends Component {
   }
 }
 
+EventCard.defaultProps = {
+  event: () => { console.log('event prop validation not set!'); },
+  curUser: () => { console.log('curUser prop validation not set!'); },
+};
+
 EventCard.propTypes = {
   cbDeleteEvent: PropTypes.func.isRequired,
   showInviteGuests: PropTypes.func.isRequired,
 
   // Current user
-  curUser: PropTypes.shape({
-    _id: PropTypes.string,      // Unique user id
-    name: PropTypes.string,     // User name
-    avatar: PropTypes.string,   // URL to image representing user(?)
-  }).isRequired,
+  curUser: isCurUser,
 
   cbDeleteGuest: PropTypes.func.isRequired,
 
   // Event containing list of event participants
-  event: PropTypes.shape({
-    _id: PropTypes.string,
-    name: PropTypes.string,
-    owner: PropTypes.string,
-    active: PropTypes.bool,
-    selectedTimeRange: PropTypes.array,
-    dates: PropTypes.arrayOf(PropTypes.shape({
-      fromDate: PropTypes.string,
-      toDate: PropTypes.string,
-      _id: PropTypes.string,
-    })),
-    participants: PropTypes.arrayOf(PropTypes.shape({
-      userId: PropTypes.shape({
-        id: PropTypes.string,
-        avatar: PropTypes.string,
-        name: PropTypes.string,
-        emails: PropTypes.arrayOf(PropTypes.string),
-      }),
-      _id: PropTypes.string,
-      status: PropTypes.oneOf([0, 1, 2, 3]),
-      emailUpdate: PropTypes.bool,
-      ownerNotified: PropTypes.bool,
-      availability: PropTypes.arrayOf(PropTypes.arrayOf(PropTypes.string)),
-    })),
-  }).isRequired,
+  event: isEvent,
 };
 
 export default cssModules(EventCard, styles);

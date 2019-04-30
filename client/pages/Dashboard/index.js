@@ -18,7 +18,6 @@ import GuestInviteDrawer from '../../components/GuestInviteDrawer/GuestInviteDra
 import styles from './dashboard.css';
 
 class Dashboard extends Component {
-
   @autobind
   static handleNewEvent() {
     browserHistory.push('/event/new');
@@ -28,9 +27,8 @@ class Dashboard extends Component {
     super(props);
     this.state = {
       events: [],
-      count: 0,
       openDrawer: false,
-      eventToInvite: {},
+      eventToInvite: null,
       curUser: {},
     };
   }
@@ -39,15 +37,23 @@ class Dashboard extends Component {
     const { isAuthenticated, curUser, events } = this.props;
     if (isAuthenticated === false) {
       this.props.cbOpenLoginModal('/dashboard');
+    } else if (events.length > 0) {
+      this.setState({ curUser, events, eventToInvite: events[0] });
     } else {
       this.setState({ curUser, events });
     }
   }
 
   async componentWillReceiveProps(nextProps) {
-    const { showPastEvents, isAuthenticated, curUser, events } = nextProps;
+    const {
+      showPastEvents, isAuthenticated, curUser, events,
+    } = nextProps;
     if (isAuthenticated) {
       this.setState({ showPastEvents, events, curUser });
+    }
+
+    if (isAuthenticated && events.length > 0) {
+      this.setState({ eventToInvite: events[0] });
     }
   }
 
@@ -73,13 +79,15 @@ class Dashboard extends Component {
   }
 
   @autobind
-  async HandleInviteEmail(guestId, event, curUser) {
-    const response = await this.props.cbInviteEmail(guestId, event, curUser);
+  async HandleInviteEmail(guestId, event) {
+    const response = await this.props.cbInviteEmail(guestId, event);
     return response;
   }
 
   render() {
-    const { events, curUser, openDrawer, eventToInvite } = this.state;
+    const {
+      events, curUser, openDrawer, eventToInvite,
+    } = this.state;
     return (
       <Paper zDepth={0} styleName="wrapper">
         {/* New Event Icon */}
@@ -112,24 +120,31 @@ class Dashboard extends Component {
             <DateRangeIcon styleName="no-selectIcon" />
           </div>
         }
-        <GuestInviteDrawer
-          open={openDrawer}
-          event={eventToInvite}
-          curUser={curUser}
-          cb={this.handleCbGuestInviteDrawer}
-          cbInviteEmail={this.HandleInviteEmail}
-        />
+        {(eventToInvite) ?
+          <GuestInviteDrawer
+            open={openDrawer}
+            event={eventToInvite}
+            cb={this.handleCbGuestInviteDrawer}
+            cbInviteEmail={this.HandleInviteEmail}
+          /> : null
+        }
       </Paper>
     );
   }
 }
 
 Dashboard.defaultProps = {
-  cbInviteEmail: undefined,
+  cbInviteEmail: () => { console.log('cbInviteEmail func not passed in!'); },
+  cbOpenLoginModal: () => { console.log('cbOpenLoginModal func not passed in!'); },
+  cbDeleteEvent: () => { console.log('cbDeleteEvent func not passed in!'); },
+  cbDeleteGuest: () => { console.log('cbDeleteGuest func not passed in!'); },
 };
 
 Dashboard.propTypes = {
   cbInviteEmail: PropTypes.func,
+  cbOpenLoginModal: PropTypes.func,
+  cbDeleteEvent: PropTypes.func,
+  cbDeleteGuest: PropTypes.func,
 };
 
 export default cssModules(Dashboard, styles);

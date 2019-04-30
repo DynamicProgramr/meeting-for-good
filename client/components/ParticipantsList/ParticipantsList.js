@@ -11,14 +11,15 @@ import PropTypes from 'prop-types';
 
 import nameInitials from '../../util/string.utils';
 import styles from './participants-list.css';
+import { isEvent, isCurUser } from '../../util/commonPropTypes';
+import chipFormater from './ParticipantsListUtils';
 
 class ParticipantsList extends Component {
   constructor(props) {
     super(props);
-    const { event, curUser } = this.props;
+    const { event } = this.props;
     this.state = {
       event: (event !== undefined) ? event : null,
-      curUser,
       openDeleteModal: false,
       openDrawer: false,
       guestToDelete: '',
@@ -27,13 +28,13 @@ class ParticipantsList extends Component {
   }
 
   componentWillMount() {
-    const { curUser, event } = this.props;
-    this.setState({ curUser, event });
+    const { event } = this.props;
+    this.setState({ event });
   }
 
   componentWillReceiveProps(nextProps) {
-    const { curUser, event } = nextProps;
-    this.setState({ curUser, event });
+    const { event } = nextProps;
+    this.setState({ event });
   }
 
   @autobind
@@ -69,58 +70,30 @@ class ParticipantsList extends Component {
   }
 
   renderChip(participant) {
-    const { curUser, event } = this.state;
-    const inLinestyles = {
-      chip: {
-        label: {
-          flexGrow: 100,
-        },
-      },
-    };
-    let borderColor;
-    let text;
-
-    switch (participant.status) {
-      case 1:
-        borderColor = '3px solid #ff8080';
-        text = 'Invited';
-        break;
-      case 2:
-        borderColor = '3px solid #A0C2FF';
-        text = 'Joined';
-        break;
-      case 3:
-        borderColor = '0.5px solid #E0E0E0';
-        text = 'Availability Submitted';
-        break;
-      default:
-        break;
-    }
-    const onRequestDeleteEnable = () => {
-      if (curUser._id !== participant.userId._id && event.owner === curUser._id) {
-        return () => this.handleOpenDeleteModal(participant._id);
-      }
-      return null;
-    };
+    const { event } = this.state;
+    const { curUser } = this.props;
+    const onRequestDeleteEnable =
+      (curUser._id !== participant.userId._id && event.owner === curUser._id) ?
+        () => this.handleOpenDeleteModal(participant._id) : null;
 
     return (
       <Chip
         key={participant._id}
         styleName={(location.pathname === '/dashboard') ? 'chip' : 'chipHover'}
-        labelStyle={inLinestyles.chip.label}
-        onRequestDelete={onRequestDeleteEnable()}
+        labelStyle={{ flexGrow: 100 }}
+        onRequestDelete={onRequestDeleteEnable}
         onMouseOver={ev => this.handleChipOnMouseOver(ev, participant.userId._id)}
         onMouseLeave={this.props.cbOnChipMouseLeave}
       >
         <Avatar
           src={participant.userId.avatar}
           styleName="avatar"
-          style={{ border: borderColor }}
+          style={{ border: chipFormater(participant).borderColor }}
           alt={nameInitials(participant.userId.name)}
         />
         <div styleName="chipTextWrapper">
           <span styleName="chipTextName">{participant.userId.name}</span>
-          <span>{text}</span>
+          <span>{chipFormater(participant).text}</span>
         </div>
       </Chip>
     );
@@ -130,62 +103,37 @@ class ParticipantsList extends Component {
     const { event } = this.state;
     const rows = [];
     event.participants.forEach((participant) => {
-      const row = (
-        <div key={participant._id}>
-          {this.renderChip(participant)}
-        </div>
-      );
-      rows.push(row);
+      rows.push(<div key={participant._id}> {this.renderChip(participant)} </div>);
     });
     return rows;
   }
 
+  renderDeleteModalActions() {
+    return [
+      <FlatButton label="Cancel" primary onTouchTap={this.handleCloseDeleteModal} />,
+      <FlatButton label="yes" secondary onTouchTap={this.handleDeleteGuest} />,
+    ];
+  }
+
   renderDeleteModal() {
     const { openDeleteModal } = this.state;
-    const actions = [
-      <FlatButton
-        label="Cancel"
-        primary
-        onTouchTap={this.handleCloseDeleteModal}
-      />,
-      <FlatButton
-        label="yes"
-        secondary
-        onTouchTap={this.handleDeleteGuest}
-      />,
-    ];
     const inLineStyles = {
-      modal: {
-        title: {
-          backgroundColor: '#FF4025',
-          color: '#ffffff',
-          fontSize: '25px',
-          height: '30px',
-          paddingTop: 6,
-        },
-        content: {
-          width: '22%',
-          maxWidth: '22%',
-          minWidth: '300px',
-        },
-        bodyStyle: {
-          paddingTop: 10,
-          fontSize: '25px',
-        },
+      title: {
+        backgroundColor: '#FF4025', color: '#ffffff', fontSize: '25px', height: '30px', paddingTop: 6,
       },
+      content: { width: '22%', maxWidth: '22%', minWidth: '300px' },
+      bodyStyle: { paddingTop: 10, fontSize: '25px' },
     };
-
     return (
       <Dialog
         title="Delete Guest"
-        titleStyle={inLineStyles.modal.title}
-        contentStyle={inLineStyles.modal.content}
-        bodyStyle={inLineStyles.modal.bodyStyle}
-        actions={actions}
+        titleStyle={inLineStyles.title}
+        contentStyle={inLineStyles.content}
+        bodyStyle={inLineStyles.bodyStyle}
+        actions={this.renderDeleteModalActions()}
         modal
         open={openDeleteModal}
-      >
-        Are you sure you want to delete this guest?
+      > Are you sure you want to delete this guest?
       </Dialog>
     );
   }
@@ -199,23 +147,16 @@ class ParticipantsList extends Component {
         height: 40,
         padding: 0,
         iconStyle: {
-          borderRadius: '50%',
-          width: 24,
-          height: 24,
-          color: '#FFF',
+          borderRadius: '50%', width: 24, height: 24, color: '#FFF',
         },
-        hoveredStyle: {
-          backgroundColor: '#006400',
-        },
+        hoveredStyle: { backgroundColor: '#006400' },
       },
     };
 
     return (
       <div>
         <div styleName="headerContainer">
-          <p styleName="particHeader">
-            Participants
-          </p>
+          <p styleName="particHeader"> Participants </p>
           <IconButton
             style={inLineStyles.buttonAddGuest}
             iconStyle={inLineStyles.buttonAddGuest.iconStyle}
@@ -227,12 +168,9 @@ class ParticipantsList extends Component {
             <ContentAdd />
           </IconButton >
         </div>
-        <div styleName="guestsContainer">
-          {this.renderGuestList()}
-        </div>
+        <div styleName="guestsContainer"> {this.renderGuestList()} </div>
         {this.renderDeleteModal()}
       </div>
-
     );
   }
 }
@@ -240,47 +178,19 @@ class ParticipantsList extends Component {
 ParticipantsList.defaultProps = {
   cbOnChipMouseOver: () => { },
   cbOnChipMouseLeave: () => { },
+  event: () => { console.log('event prop validation not set!'); },
+  curUser: () => { console.log('curUser prop validation not set!'); },
 };
 
 ParticipantsList.propTypes = {
   // Current user
-  curUser: PropTypes.shape({
-    _id: PropTypes.string,      // Unique user id
-    name: PropTypes.string,     // User name
-    avatar: PropTypes.string,   // URL to image representing user(?)
-  }).isRequired,
-
+  curUser: isCurUser,
   showInviteGuests: PropTypes.func.isRequired,
   cbDeleteGuest: PropTypes.func.isRequired,
   cbOnChipMouseOver: PropTypes.func,
   cbOnChipMouseLeave: PropTypes.func,
-
   // Event containing list of event participants
-  event: PropTypes.shape({
-    _id: PropTypes.string,
-    name: PropTypes.string,
-    owner: PropTypes.string,
-    active: PropTypes.bool,
-    selectedTimeRange: PropTypes.array,
-    dates: PropTypes.arrayOf(PropTypes.shape({
-      fromDate: PropTypes.string,
-      toDate: PropTypes.string,
-      _id: PropTypes.string,
-    })),
-    participants: PropTypes.arrayOf(PropTypes.shape({
-      userId: PropTypes.shape({
-        id: PropTypes.string,
-        avatar: PropTypes.string,
-        name: PropTypes.string,
-        emails: PropTypes.arrayOf(PropTypes.string),
-      }),
-      _id: PropTypes.string,
-      status: PropTypes.oneOf([0, 1, 2, 3]),
-      emailUpdate: PropTypes.bool,
-      ownerNotified: PropTypes.bool,
-      availability: PropTypes.arrayOf(PropTypes.arrayOf(PropTypes.string)),
-    })),
-  }).isRequired,
+  event: isEvent,
 };
 
 export default cssModules(ParticipantsList, styles);

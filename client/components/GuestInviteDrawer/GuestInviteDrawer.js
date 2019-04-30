@@ -2,9 +2,6 @@ import React, { Component } from 'react';
 import cssModules from 'react-css-modules';
 import Drawer from 'material-ui/Drawer';
 import autobind from 'autobind-decorator';
-import { ListItem } from 'material-ui/List';
-import Checkbox from 'material-ui/Checkbox';
-import Avatar from 'material-ui/Avatar';
 import TextField from 'material-ui/TextField';
 import RaisedButton from 'material-ui/RaisedButton';
 import Divider from 'material-ui/Divider';
@@ -13,13 +10,16 @@ import { browserHistory } from 'react-router';
 import Snackbar from 'material-ui/Snackbar';
 import LinearProgress from 'material-ui/LinearProgress';
 import SearchIcon from 'material-ui/svg-icons/action/search';
-import Infinite from 'react-infinite';
+
 import PropTypes from 'prop-types';
 import _ from 'lodash';
 
 import styles from './guest-invite.css';
 import { checkStatus, parseJSON } from '../../util/fetch.util';
-import nameInitials from '../../util/string.utils';
+import { fullUrl } from './guestInviteDrawerUtils';
+import { isEvent } from '../../util/commonPropTypes';
+import UrlActions from './GuestInviteUrlActions';
+import GuestInviveDrawerRows from './GuestInviteDrawerRows';
 
 class GuestInviteDrawer extends Component {
   @autobind
@@ -31,8 +31,6 @@ class GuestInviteDrawer extends Component {
     super(props);
     this.state = {
       open: false,
-      curUser: {},
-      event: {},
       guests: [],
       guestsToDisplay: [],
       activeCheckBoxes: [],
@@ -46,43 +44,34 @@ class GuestInviteDrawer extends Component {
   }
 
   async componentWillMount() {
-    await this.loadPastGuests();
-    const { event, open, curUser } = this.props;
-    this.setState({ event, open, curUser, activeCheckBoxes: [] });
+    try {
+      const guests = await this.loadPastGuests();
+      const { open } = this.props;
+      this.setState({
+        open, activeCheckBoxes: [], guests, guestsToDisplay: guests,
+      });
+    } catch (err) {
+      console.log('loadPastGuests GuestInviteDrawer', err);
+    }
   }
 
   componentWillReceiveProps(nextProps) {
-    const { event, open, curUser } = nextProps;
-    this.setState({ event, open, curUser, activeCheckBoxes: [], setFocusFullUrl: true });
+    const { open } = nextProps;
+    this.setState({ open, activeCheckBoxes: [], setFocusFullUrl: true });
   }
 
   async loadPastGuests() {
-    this.setState({ linearProgressVisible: 'visible' });
-
-    const response = await fetch('/api/user/relatedUsers', {
-      credentials: 'same-origin',
-    });
-
+    const response = await fetch('/api/user/relatedUsers', { credentials: 'same-origin' });
     let guests;
     try {
       checkStatus(response);
       guests = await parseJSON(response);
-      this.setState({ guests, guestsToDisplay: guests });
+      return guests;
     } catch (err) {
       console.log('loadPassGuests', err);
-      this.setState({
-        snackbarOpen: true,
-        snackbarMsg: 'Error!!, Failed to load guests. Please try again later.',
-      });
-      return;
-    } finally {
-      this.setState({ linearProgressVisible: 'hidden' });
+      this.setState({ snackbarOpen: true, snackbarMsg: 'Error!!, Failed to load guests. Please try again later.' });
+      return [];
     }
-  }
-
-  @autobind
-  handleSnackbarRequestClose() {
-    this.setState({ snackbarOpen: false });
   }
 
   @autobind
@@ -90,58 +79,44 @@ class GuestInviteDrawer extends Component {
     const { activeCheckBoxes } = this.state;
     let nActiveCheckBoxes = _.cloneDeep(activeCheckBoxes);
     if (nActiveCheckBoxes.includes(id)) {
-      this.setState({
-        activeCheckBoxes: nActiveCheckBoxes.filter(x => x !== id),
-      });
+      this.setState({ activeCheckBoxes: nActiveCheckBoxes.filter(x => x !== id) });
     } else {
       nActiveCheckBoxes = [...nActiveCheckBoxes, id];
-      this.setState({
-        activeCheckBoxes: nActiveCheckBoxes,
-      });
+      this.setState({ activeCheckBoxes: nActiveCheckBoxes });
     }
   }
 
   @autobind
   async handleInvite() {
-    const { activeCheckBoxes, curUser, event } = this.state;
+    const { activeCheckBoxes } = this.state;
+    const { event, cbInviteEmail } = this.props;
     let nActiveCheckBoxes = _.cloneDeep(activeCheckBoxes);
     if (activeCheckBoxes.length > 0) {
-      await Promise.all(
-        activeCheckBoxes.map(async (guest) => {
-          try {
-            await this.props.cbInviteEmail(guest, event, curUser);
-            nActiveCheckBoxes = nActiveCheckBoxes.filter(x => x !== guest);
-          } catch (err) {
-            console.log('err at handleInvitem GuestInviteDrawer', err);
-            this.setState({
-              snackbarOpen: true,
-              snackbarMsg: 'Error!!, sending invite for guest',
-            });
-          } finally {
-            this.setState({ activeCheckBoxes: nActiveCheckBoxes });
-          }
-        }),
-      );
+      await Promise.all(activeCheckBoxes.map(async (guest) => {
+        try {
+          await cbInviteEmail(guest, event);
+          nActiveCheckBoxes = nActiveCheckBoxes.filter(x => x !== guest);
+        } catch (err) {
+          console.log('err at handleInvitem GuestInviteDrawer', err);
+          this.setState({ snackbarOpen: true, snackbarMsg: 'Error!!, sending invite for guest' });
+        } finally {
+          this.setState({ activeCheckBoxes: nActiveCheckBoxes });
+        }
+      }));
     } else {
-      this.setState({
-        snackbarOpen: true,
-        snackbarMsg: 'Error!!, Please select guests to invite.',
-      });
+      this.setState({ snackbarOpen: true, snackbarMsg: 'Error!!, Please select guests to invite.' });
     }
   }
 
   @autobind
   handleCopyButtonClick(ev) {
-    const { event } = this.state;
+    const { event } = this.props;
     const clipboard = new Clipboard(ev.target, {
       target: () => document.getElementById('fullUrl'),
     });
 
     clipboard.on('success', (e) => {
-      this.setState({
-        snackbarOpen: true,
-        snackbarMsg: `${event.name} link copied to clipboard!`,
-      });
+      this.setState({ snackbarOpen: true, snackbarMsg: `${event.name} link copied to clipboard!` });
       e.clearSelection();
     });
   }
@@ -165,101 +140,68 @@ class GuestInviteDrawer extends Component {
 
   @autobind
   handleSendEmail(ev) {
-    if (typeof this.state.event === 'undefined') {
+    if (typeof this.props.event === 'undefined') {
       ev.preventDefault();
-      this.setState({
-        snackbarOpen: true,
-        snackbarMsg: 'error generating email body! Please try reload the page',
-      });
+      this.setState({ snackbarOpen: true, snackbarMsg: 'error generating email body! Please try reload the page' });
     }
   }
 
-  renderRows() {
-    const { activeCheckBoxes, guestsToDisplay } = this.state;
-    const inLineStyles = {
-      listItem: {
-        borderBottom: '1px solid #D4D4D4',
-      },
+  renderUrlActions() {
+    const { event } = this.props;
+    const focusUrlTextField = (input) => {
+      if (input && this.state.setFocusFullUrl) {
+        this.setState({ setFocusFullUrl: false });
+        setTimeout(() => { input.focus(); input.select(); }, 100);
+      }
     };
-    const rows = [];
-    guestsToDisplay.forEach((guest) => {
-      const row = (
-        <ListItem
-          style={inLineStyles.listItem}
-          key={`${guest._id}.listItem`}
-          primaryText={guest.userId.name}
-          leftCheckbox={<Checkbox
-            onCheck={() => this.handleCheck(guest.userId._id)}
-            checked={activeCheckBoxes.includes(guest.userId._id)}
-          />}
-          rightAvatar={<Avatar
-            src={guest.userId.avatar}
-            alt={nameInitials(guest.userId.name)}
-          />}
+    return (
+      <div>
+        <TextField
+          id="fullUrl"
+          styleName="textUrl"
+          value={fullUrl(event)}
+          underlineShow={false}
+          fullWidth
+          label="Full Url"
+          ref={focusUrlTextField}
+          aria-label="Full Url"
         />
-      );
-      rows.push(row);
-    });
-    return rows;
+        <UrlActions
+          event={event}
+          handleSendEmail={ev => this.handleSendEmail(ev)}
+          handleCopyButtonClick={ev => this.handleCopyButtonClick(ev)}
+        />
+      </div>
+    );
+  }
+
+  renderSnackBar() {
+    const { snackbarOpen, snackbarMsg } = this.state;
+    return (
+      <Snackbar
+        styleName="Snackbar"
+        bodyStyle={{ height: 'flex' }}
+        contentStyle={{ borderBottom: '0.2px solid' }}
+        open={snackbarOpen}
+        message={snackbarMsg}
+        action="Dismiss"
+        autoHideDuration={3000}
+        onActionTouchTap={() => this.setState({ snackbarOpen: false })}
+        onRequestClose={this.handleSnackbarRequestClose}
+      />
+    );
   }
 
   render() {
     const {
-      open,
-      event,
-      snackbarOpen,
-      searchText,
-      snackbarMsg,
-      linearProgressVisible,
+      open, searchText, linearProgressVisible, guestsToDisplay, activeCheckBoxes,
     } = this.state;
-
-    const fullUrl = `${location.protocol}//${location.hostname}${(location.port ? `:${location.port}` : '')}/event/${event._id}`;
-
-    const focusUrlTextField = (input) => {
-      if (input) {
-        if (this.state.setFocusFullUrl) {
-          this.setState({ setFocusFullUrl: false });
-          setTimeout(() => {
-            input.focus();
-            input.select();
-          }
-            , 100);
-        }
-      }
-    };
-    const lines = 174;
+    const { event } = this.props;
     const inLineStyles = {
-      drawer: {
-        container: {
-          paddingLeft: '9px',
-          paddingRight: '10px',
-        },
-        textField: {
-          floatingLabel: {
-            fontSize: '15px',
-            paddingLeft: 8,
-          },
-        },
-        inviteButton: {
-          paddingTop: '15px',
-        },
-        snackbar: {
-          bodyStyle: {
-            height: 'flex',
-          },
-          contentStyle: {
-            borderBottom: '0.2px solid',
-          },
-        },
-        linearProgress: {
-          visibility: linearProgressVisible,
-        },
-      },
+      container: { paddingLeft: '9px', paddingRight: '10px' },
+      textField: { floatingLabel: { fontSize: '15px', paddingLeft: 8 } },
+      linearProgress: { visibility: linearProgressVisible },
     };
-
-    const emailText = `Hey there,%0D%0A%0D%0AUse this tool to let me know your availablility for ${event.name}:
-    %0D%0A%0D%0A${fullUrl}
-    %0D%0A%0D%0A All times will be automatically converted to your local timezone.`;
 
     return (
       <Drawer
@@ -267,42 +209,17 @@ class GuestInviteDrawer extends Component {
         width={350}
         open={open}
         onRequestChange={open => this.handleOnRequestChange(open)}
-        containerStyle={inLineStyles.drawer.container}
+        containerStyle={inLineStyles.container}
       >
-        <LinearProgress style={inLineStyles.drawer.linearProgress} />
+        <LinearProgress style={inLineStyles.linearProgress} />
         <h3 styleName="header"> {event.name} </h3>
-        <TextField
-          id="fullUrl"
-          styleName="textUrl"
-          value={fullUrl}
-          underlineShow={false}
-          fullWidth
-          label="Full Url"
-          ref={focusUrlTextField}
-          aria-label="Full Url"
-        />
-        <div styleName="Row">
-          <RaisedButton
-            styleName="copyAndEmailButton"
-            className="cpBtn"
-            primary
-            onTouchTap={this.handleCopyButtonClick}
-            label="Copy Link"
-          />
-          <RaisedButton
-            styleName="copyAndEmailButton"
-            label="Send Email Invite"
-            primary
-            onClick={ev => this.handleSendEmail(ev)}
-            href={`mailto:?subject=Share your availability for ${event.name}&body=${emailText}`}
-          />
-        </div>
+        {this.renderUrlActions()}
         <Divider styleName="Divider" />
         <h6 styleName="inviteEventText">Recent Guests</h6>
         <div styleName="Row">
           <SearchIcon styleName="searchIcon" />
           <TextField
-            floatingLabelStyle={inLineStyles.drawer.textField.floatingLabel}
+            floatingLabelStyle={inLineStyles.textField.floatingLabel}
             fullWidth
             label="Search Guests"
             floatingLabelText="Search guests"
@@ -311,27 +228,13 @@ class GuestInviteDrawer extends Component {
             inputStyle={{ WebkitBoxShadow: '0 0 0 1000px white inset' }}
           />
         </div>
-        <Infinite elementHeight={58} containerHeight={lines}>
-          {this.renderRows()}
-        </Infinite>
-        <RaisedButton
-          label="Invite"
-          styleName="inviteButton"
-          onTouchTap={this.handleInvite}
-          fullWidth
-          primary
+        <GuestInviveDrawerRows
+          guestsToDisplay={guestsToDisplay}
+          activeCheckBoxes={activeCheckBoxes}
+          handleCheck={this.handleCheck}
         />
-        <Snackbar
-          styleName="Snackbar"
-          bodyStyle={inLineStyles.drawer.snackbar.bodyStyle}
-          contentStyle={inLineStyles.drawer.snackbar.contentStyle}
-          open={snackbarOpen}
-          message={snackbarMsg}
-          action="Dismiss"
-          autoHideDuration={3000}
-          onActionTouchTap={this.handleSnackbarRequestClose}
-          onRequestClose={this.handleSnackbarRequestClose}
-        />
+        <RaisedButton label="Invite" styleName="inviteButton" onTouchTap={this.handleInvite} fullWidth primary />
+        {this.renderSnackBar()}
       </Drawer>
     );
   }
@@ -339,46 +242,17 @@ class GuestInviteDrawer extends Component {
 
 GuestInviteDrawer.defaultProps = {
   open: false,
+  event: () => { console.log('event prop validation not set!'); },
 };
 
 GuestInviteDrawer.propTypes = {
   // Current user
-  curUser: PropTypes.shape({
-    _id: PropTypes.string,      // Unique user id
-    name: PropTypes.string,     // User name
-    avatar: PropTypes.string,   // URL to image representing user(?)
-  }).isRequired,
-
   open: PropTypes.bool,
   cb: PropTypes.func.isRequired,
   cbInviteEmail: PropTypes.func.isRequired,
 
   // Event containing list of event participants
-  event: PropTypes.shape({
-    _id: PropTypes.string,
-    name: PropTypes.string,
-    owner: PropTypes.string,
-    active: PropTypes.bool,
-    selectedTimeRange: PropTypes.array,
-    dates: PropTypes.arrayOf(PropTypes.shape({
-      fromDate: PropTypes.string,
-      toDate: PropTypes.string,
-      _id: PropTypes.string,
-    })),
-    participants: PropTypes.arrayOf(PropTypes.shape({
-      userId: PropTypes.shape({
-        id: PropTypes.string,
-        avatar: PropTypes.string,
-        name: PropTypes.string,
-        emails: PropTypes.arrayOf(PropTypes.string),
-      }),
-      _id: PropTypes.string,
-      status: PropTypes.oneOf([0, 1, 2, 3]),
-      emailUpdate: PropTypes.bool,
-      ownerNotified: PropTypes.bool,
-      availability: PropTypes.arrayOf(PropTypes.arrayOf(PropTypes.string)),
-    })),
-  }).isRequired,
+  event: isEvent,
 };
 
 export default cssModules(GuestInviteDrawer, styles);

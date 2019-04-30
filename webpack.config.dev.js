@@ -7,7 +7,9 @@ const path = require('path');
 const BundleAnalyzerPlugin = require('webpack-bundle-analyzer').BundleAnalyzerPlugin;
 const WebpackAssetsManifest = require('webpack-assets-manifest');
 const FaviconsWebpackPlugin = require('favicons-webpack-plugin');
+const cssNano = require('cssnano');
 const packageJSON = require('./package.json');
+
 
 const noVisualization = process.env.ANALYSE_PACK.toString() === 'false';
 const lintCode = process.env.LINT_CODE.toString() === 'false';
@@ -131,16 +133,19 @@ module.exports = {
 
     new webpack.DefinePlugin({
       'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
-      'process.env.GoogleAnalyticsID': JSON.stringify(process.env.GoogleAnalyticsID),
-      'process.env.GoogleAnalyticsDebug': JSON.stringify(process.env.GoogleAnalyticsDebug),
+      'process.env.GOOGLE_ANALYTICS_ID': JSON.stringify(process.env.GOOGLE_ANALYTICS_ID),
+      'process.env.GOOGLE_ANALYTICS_DEBUG': JSON.stringify(process.env.GOOGLE_ANALYTICS_DEBUG),
       'process.env.versionNumber': JSON.stringify(packageJSON.version),
     }),
     new ExtractTextPlugin('vendor.css'),
     new OptimizeCSS({
+      assetNameRegExp: /\.optimize\.css$/g,
+      cssProcessor: cssNano,
       cssProcessorOptions: {
         discardComments: {
           removeAll: true,
         },
+        canPrint: true,
       },
     }),
     new webpack.optimize.CommonsChunkPlugin({
